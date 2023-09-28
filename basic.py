@@ -21,18 +21,19 @@ LETTERS_DIGITS = LETTERS + DIGITS
 #######################################
 
 class Error:
+  #Primero determina la posicion en la que se encuentra
   def __init__(self, pos_start, pos_end, error_name, details):
     self.pos_start = pos_start
     self.pos_end = pos_end
     self.error_name = error_name
     self.details = details
-  
+  #Determina si no estaba esperando una cadena de texto
   def as_string(self):
     result  = f'{self.error_name}: {self.details}\n'
     result += f'File {self.pos_start.fn}, line {self.pos_start.ln + 1}'
     result += '\n\n' + string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
     return result
-
+#Determina es un caracter ilegal o no lo esperaba
 class IllegalCharError(Error):
   def __init__(self, pos_start, pos_end, details):
     super().__init__(pos_start, pos_end, 'Illegal Character', details)
@@ -40,7 +41,7 @@ class IllegalCharError(Error):
 class ExpectedCharError(Error):
   def __init__(self, pos_start, pos_end, details):
     super().__init__(pos_start, pos_end, 'Expected Character', details)
-
+#Determina si hay una sintaxis invalida
 class InvalidSyntaxError(Error):
   def __init__(self, pos_start, pos_end, details=''):
     super().__init__(pos_start, pos_end, 'Invalid Syntax', details)
@@ -71,7 +72,8 @@ class RTError(Error):
 #######################################
 # Posicion
 #######################################
-
+#La posicion no ayuda a saber en que parte del codigo se encuentra el programa
+#Guardando el indice, nombre de la linea, columna, y file name
 class Position:
   def __init__(self, idx, ln, col, fn, ftxt):
     self.idx = idx
@@ -96,7 +98,7 @@ class Position:
 #######################################
 # TOKENS
 #######################################
-
+#Los tokens determinan como se traduce los componentes individuales en el archivo de entrada
 TT_INT				= 'INT'
 TT_FLOAT    	= 'FLOAT'
 TT_STRING			= 'STRING'
@@ -122,7 +124,7 @@ TT_COMMA			= 'COMMA'
 TT_ARROW			= 'ARROW'
 TT_NEWLINE		= 'NEWLINE'
 TT_EOF				= 'EOF'
-
+#palabras reservadas son aquellas que nos permitiran hacer funciones mas complejas a futuro
 KEYWORDS = [
   'VAR',
   'AND',
@@ -142,7 +144,7 @@ KEYWORDS = [
   'CONTINUE',
   'BREAK',
 ]
-
+#Los tokens tienen un tipo y una posicion y en el lexer son agregados en una lista
 class Token:
   def __init__(self, type_, value=None, pos_start=None, pos_end=None):
     self.type = type_
@@ -166,13 +168,16 @@ class Token:
 #######################################
 # LEXER
 #######################################
-
+#El lexer evalua cada caracter o conjunto de numeros de derecha a izquierda y tokeniza cada  uno de ellos
+#asi como tambien cada operador
 class Lexer:
   def __init__(self, fn, text):
     self.fn = fn
     self.text = text
+    #Comenzamos desde la posicion -1 columna 0 y nombre del archivo para comenzar a leer
     self.pos = Position(-1, 0, -1, fn, text)
     self.current_char = None
+    #advance mueve el cursor de lectura un paso hacia adelante
     self.advance()
   
   def advance(self):
@@ -180,6 +185,7 @@ class Lexer:
     self.current_char = self.text[self.pos.idx] if self.pos.idx < len(self.text) else None
 
   def make_tokens(self):
+    #los tokens creados son almacenados en la lista
     tokens = []
 
     while self.current_char != None:
@@ -243,7 +249,8 @@ class Lexer:
 
     tokens.append(Token(TT_EOF, pos_start=self.pos))
     return tokens, None
-
+#Make_number permite concatenar una secuencia de numeros en la cual determina si hay un punto decimal
+# y si hay mas de uno en la misma cadena de numeros es descartado
   def make_number(self):
     num_str = ''
     dot_count = 0
@@ -260,7 +267,7 @@ class Lexer:
       return Token(TT_INT, int(num_str), pos_start, self.pos)
     else:
       return Token(TT_FLOAT, float(num_str), pos_start, self.pos)
-
+# Make string mantiene la estructura de una cadena de caracteres siempre y cuando este envuelta en comillas ''
   def make_string(self):
     string = ''
     pos_start = self.pos.copy()
@@ -1252,7 +1259,7 @@ class Parser:
 #######################################
 # Resultado de la corrida
 #######################################
-
+#Estas son funciones para comenzar a ejecutar cada operador y operando
 class RTResult:
   def __init__(self):
     self.reset()
@@ -1307,7 +1314,8 @@ class RTResult:
 #######################################
 # Valores
 #######################################
-
+#En esta clase se almacenan las funciones que seran ejecutadas
+#Primero evaluamos si es una operacion ilegal
 class Value:
   def __init__(self):
     self.set_pos()
@@ -1368,7 +1376,7 @@ class Value:
     return RTResult().failure(self.illegal_operation())
 
   def copy(self):
-    raise Exception('No copy method defined')
+    raise Exception('No hay metodo de copiado')
 
   def is_true(self):
     return False
@@ -1377,35 +1385,37 @@ class Value:
     if not other: other = self
     return RTError(
       self.pos_start, other.pos_end,
-      'Illegal operation',
+      'Operacion ilegal',
       self.context
     )
 
 class Number(Value):
+# Aqui se evaluan los operandos de izquierda a derecha
   def __init__(self, value):
     super().__init__()
     self.value = value
-
+# Suma de numero
   def added_to(self, other):
     if isinstance(other, Number):
       return Number(self.value + other.value).set_context(self.context), None
     else:
       return None, Value.illegal_operation(self, other)
-
+# Resta de numero
   def subbed_by(self, other):
     if isinstance(other, Number):
       return Number(self.value - other.value).set_context(self.context), None
     else:
       return None, Value.illegal_operation(self, other)
-
+# Multiplicacion
   def multed_by(self, other):
     if isinstance(other, Number):
       return Number(self.value * other.value).set_context(self.context), None
     else:
       return None, Value.illegal_operation(self, other)
-
+# Division
   def dived_by(self, other):
     if isinstance(other, Number):
+      #Revisa si se va a dividir entre 0
       if other.value == 0:
         return None, RTError(
           other.pos_start, other.pos_end,
@@ -1416,13 +1426,13 @@ class Number(Value):
       return Number(self.value / other.value).set_context(self.context), None
     else:
       return None, Value.illegal_operation(self, other)
-
+# elevar a la potencia
   def powed_by(self, other):
     if isinstance(other, Number):
       return Number(self.value ** other.value).set_context(self.context), None
     else:
       return None, Value.illegal_operation(self, other)
-
+# comparaciones
   def get_comparison_eq(self, other):
     if isinstance(other, Number):
       return Number(int(self.value == other.value)).set_context(self.context), None
@@ -1488,7 +1498,7 @@ class Number(Value):
   
   def __repr__(self):
     return str(self.value)
-
+# deficiniones para valores boleanos
 Number.null = Number(0)
 Number.false = Number(0)
 Number.true = Number(1)
@@ -1600,14 +1610,14 @@ class BaseFunction(Value):
     if len(args) > len(arg_names):
       return res.failure(RTError(
         self.pos_start, self.pos_end,
-        f"{len(args) - len(arg_names)} too many args passed into {self}",
+        f"{len(args) - len(arg_names)} demaciados argumentos agregados {self}",
         self.context
       ))
     
     if len(args) < len(arg_names):
       return res.failure(RTError(
         self.pos_start, self.pos_end,
-        f"{len(arg_names) - len(args)} too few args passed into {self}",
+        f"{len(arg_names) - len(args)} muy pocos argumentos agregados {self}",
         self.context
       ))
 
@@ -1676,7 +1686,7 @@ class BuiltInFunction(BaseFunction):
     return res.success(return_value)
   
   def no_visit_method(self, node, context):
-    raise Exception(f'No execute_{self.name} method defined')
+    raise Exception(f'No execute_{self.name} metodo definido')
 
   def copy(self):
     copy = BuiltInFunction(self.name)
@@ -1871,7 +1881,7 @@ BuiltInFunction.run					= BuiltInFunction("run")
 #######################################
 # Contexto
 #######################################
-
+#contexo es otra forma de determinar nuestra ubicacion pero dentro del arbol de nodos
 class Context:
   def __init__(self, display_name, parent=None, parent_entry_pos=None):
     self.display_name = display_name
@@ -1903,7 +1913,7 @@ class SymbolTable:
 #######################################
 # Interprete
 #######################################
-
+# El interprete visita cada nodo 
 class Interpreter:
   def visit(self, node, context):
     method_name = f'visit_{type(node).__name__}'
@@ -1914,17 +1924,18 @@ class Interpreter:
     raise Exception(f'No visit_{type(node).__name__} method defined')
 
   ###################################
-
+# visita cada tipo de nodo
+#nodo de numero
   def visit_NumberNode(self, node, context):
     return RTResult().success(
       Number(node.tok.value).set_context(context).set_pos(node.pos_start, node.pos_end)
     )
-
+# nodo de string
   def visit_StringNode(self, node, context):
     return RTResult().success(
       String(node.tok.value).set_context(context).set_pos(node.pos_start, node.pos_end)
     )
-
+# nodo de lista
   def visit_ListNode(self, node, context):
     res = RTResult()
     elements = []
@@ -1936,7 +1947,7 @@ class Interpreter:
     return res.success(
       List(elements).set_context(context).set_pos(node.pos_start, node.pos_end)
     )
-
+# nodo de variable
   def visit_VarAccessNode(self, node, context):
     res = RTResult()
     var_name = node.var_name_tok.value
@@ -1960,14 +1971,15 @@ class Interpreter:
 
     context.symbol_table.set(var_name, value)
     return res.success(value)
-
+# nodo de operacion de dos Nodos
   def visit_BinOpNode(self, node, context):
     res = RTResult()
     left = res.register(self.visit(node.left_node, context))
     if res.should_return(): return res
     right = res.register(self.visit(node.right_node, context))
     if res.should_return(): return res
-
+# aqui se evalua los tokens en cada nodo
+# como TT_Plus para sumar el nodo izquierdo al derecho
     if node.op_tok.type == TT_PLUS:
       result, error = left.added_to(right)
     elif node.op_tok.type == TT_MINUS:
@@ -1994,7 +2006,7 @@ class Interpreter:
       result, error = left.anded_by(right)
     elif node.op_tok.matches(TT_KEYWORD, 'OR'):
       result, error = left.ored_by(right)
-
+# en caso de error responde el mensaje
     if error:
       return res.failure(error)
     else:
@@ -2006,7 +2018,7 @@ class Interpreter:
     if res.should_return(): return res
 
     error = None
-
+# la mejor manera de cambiar un numero a negativo es multiplicarlo por -1 negativo
     if node.op_tok.type == TT_MINUS:
       number, error = number.multed_by(Number(-1))
     elif node.op_tok.matches(TT_KEYWORD, 'NOT'):
@@ -2157,7 +2169,7 @@ class Interpreter:
 #######################################
 # Corrida del programa
 #######################################
-
+#Tabla de simbolos en cierta manera heredada de la SymbolTable
 global_symbol_table = SymbolTable()
 global_symbol_table.set("NULL", Number.null)
 global_symbol_table.set("FALSE", Number.false)
