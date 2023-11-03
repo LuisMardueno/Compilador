@@ -31,6 +31,8 @@ if __name__ == "__main__":
     with cProfile.Profile() as profile:
         print(add(100, 5000))
         print(fact(70))
+        #Para otro ejemplo Crear una variable de resultado asignarle el return de la funcion y despues imprimir, (tiene resultados marginales y desperdicia un pequeño
+        # porcentaje de la memoria. a escala puede ocacinar desbordamientos)
         st = time.time()
         print(mas_cosas())
         et = time.time()
